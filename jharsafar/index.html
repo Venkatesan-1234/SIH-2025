@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+  <title>JharSafar — Jharkhand Travel (Auth + FAQ Chatbot)</title>
+  <meta name="theme-color" content="#071028" />
+  <meta name="description" content="JharSafar — Jharkhand travel prototype (menu-driven) with signup/login for tourists and FAQ-enabled chatbot" />
+  
+  <!-- External Libraries -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
+  
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- AUTH OVERLAY -->
+  <div id="authOverlay" class="auth-overlay" aria-hidden="false">
+    <div class="login-wrapper" role="dialog" aria-modal="true">
+      <div class="login-hero" aria-hidden="true"></div>
+      <div class="login-card" role="document">
+        <h1>🌏 Jharsafar</h1>
+        <p style="color:#ddd;margin:0 0 8px">Tourist access — signup or login to continue.</p>
+        <div class="auth-tabs">
+          <button id="loginTab" class="active" onclick="setAuth('login')">Login</button>
+          <button id="signupTab" onclick="setAuth('signup')">Signup</button>
+        </div>
+        <form id="loginForm" class="auth-form" onsubmit="event.preventDefault(); handleAuth('login');">
+          <input type="text" id="loginUser" placeholder="Username (demo: tourist)" />
+          <input type="password" id="loginPass" placeholder="Password (demo: tourist)" />
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button class="login-btn" type="submit">Login</button>
+            <button type="button" class="btn alt" onclick="fillDemo()">Fill demo creds</button>
+          </div>
+        </form>
+        <form id="signupForm" class="auth-form" onsubmit="event.preventDefault(); handleAuth('signup');" style="display:none">
+          <input type="text" id="signupName" placeholder="Full name" />
+          <input type="email" id="signupEmail" placeholder="Email" />
+          <input type="text" id="signupUser" placeholder="Choose username" />
+          <input type="password" id="signupPass" placeholder="Password" />
+          <input type="password" id="signupConfirm" placeholder="Confirm password" />
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button class="login-btn" type="submit">Create tourist account</button>
+            <button type="button" class="btn alt" onclick="setAuth('login')">Back to login</button>
+          </div>
+        </form>
+        <div class="small-muted" style="margin-top:10px">Demo user: <code>tourist</code> / <code>tourist</code></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN APP HEADER -->
+  <header style="display:none" id="mainHeader">
+    <div class="container" style="display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <h1>JharSafar</h1>
+        <div class="muted">Jharkhand travel — select a service</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <div id="welcomeText" class="muted"></div>
+        <button id="logoutBtn" class="btn alt">Logout</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN APP CONTENT -->
+  <main class="container" id="mainApp" style="display:none">
+    <!-- MAIN MENU SCREEN -->
+    <section id="menuScreen" class="screen active">
+      <div class="menu-grid">
+        <div class="tile" data-target="transportScreen" tabindex="0">
+          <h3>🚌 Transport & Live Vehicles</h3>
+          <p>Routing, ETA, live buses, taxis & fare matchmaking.</p>
+        </div>
+        <div class="tile" data-target="hotelsScreen" tabindex="0">
+          <h3>🏨 Hotels & Homestays</h3>
+          <p>Browse local stays, detailed descriptions and features.</p>
+        </div>
+        <div class="tile" data-target="craftsScreen" tabindex="0">
+          <h3>🛍 Handicrafts & Shops</h3>
+          <p>Local arts — short descriptions & multiple shop suggestions (no images).</p>
+        </div>
+        <div class="tile" data-target="feedbackScreen" tabindex="0">
+          <h3>✍️ Feedback & Guide Reviews</h3>
+          <p>Post feedback, review guides, view local ratings.</p>
+        </div>
+        <div class="tile" data-target="arvrScreen" tabindex="0">
+          <h3>🌐 AR / VR 360 Preview</h3>
+          <p>Open 360 viewer (embedded A-Frame & Pannellum).</p>
+        </div>
+        <div class="tile" data-target="translatorScreen" tabindex="0">
+          <h3>🗣 Translator & Chatbot</h3>
+          <p>Text/voice translator + simple Q&A chatbot (tourist FAQ).</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- TRANSPORT SCREEN -->
+    <section id="transportScreen" class="screen">
+      <div class="card">
+        <h2>🗺 Transport & Map</h2>
+        <div class="row" style="margin-top:8px">
+          <input id="fromInput_short" placeholder="From (address or lat,lon)" style="flex:1"/>
+          <input id="toInput_short" placeholder="To (address or lat,lon)" style="flex:1;margin-left:8px"/>
+          <button id="routeBtn_short" class="btn" style="margin-left:8px">Route</button>
+        </div>
+        <div class="row" style="margin-top:10px;align-items:center">
+          <input id="proposedFare_short" placeholder="Proposed fare (₹)" style="width:160px"/>
+          <button id="proposeFareBtn_short" class="btn" style="margin-left:8px">Propose Fare</button>
+          <div style="margin-left:12px;color:var(--muted)">Propose a fare to see driver matches for the computed route</div>
+        </div>
+        <div id="map" style="margin-top:12px"></div>
+        <div style="margin-top:8px" id="routeSummary_short" class="muted">No route yet.</div>
+        <div style="margin-top:8px">
+          <h3 style="margin:6px 0">Nearby vehicles</h3>
+          <div id="vehList_short"></div>
+        </div>
+        <div style="margin-top:10px">
+          <h3 style="margin:6px 0">Driver Matches (proposed fare)</h3>
+          <div id="driverList_short" style="min-height:40px"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- HOTELS SCREEN -->
+    <section id="hotelsScreen" class="screen">
+      <div class="card">
+        <h2>🏨 Hotels & Homestays</h2>
+        <div id="hotelGrid_short" style="display:grid;grid-template-columns:1fr;gap:10px;margin-top:12px"></div>
+      </div>
+    </section>
+
+    <!-- CRAFTS SCREEN -->
+    <section id="craftsScreen" class="screen">
+      <div class="card">
+        <h2>🛍 Handicrafts & Local Shops</h2>
+        <div id="craftList_big" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:10px"></div>
+      </div>
+    </section>
+
+    <!-- FEEDBACK & GUIDES SCREEN -->
+    <section id="feedbackScreen" class="screen">
+      <div class="card">
+        <h2>✍️ Feedback & Guide Reviews</h2>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <input id="fbName_short" placeholder="Your name" />
+          <select id="fbGuideSelect_short"></select>
+          <select id="fbRating" style="width:120px">
+            <option value="">Rating (optional)</option>
+            <option value="5">5 ★</option>
+            <option value="4">4 ★</option>
+            <option value="3">3 ★</option>
+            <option value="2">2 ★</option>
+            <option value="1">1 ★</option>
+          </select>
+        </div>
+        <div style="margin-top:8px">
+          <textarea id="fbText_short" placeholder="Write your feedback..."></textarea>
+        </div>
+        <div style="margin-top:8px" class="row">
+          <button class="btn" id="submitFeedback_short">Submit Feedback</button>
+          <button class="btn alt" id="refreshForum_short">Refresh</button>
+        </div>
+        <div style="margin-top:12px" id="forumList_short"></div>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <h2>🧑‍✈️ Verified Guides</h2>
+        <div id="guideList_short"></div>
+      </div>
+    </section>
+
+    <!-- AR/VR SCREEN -->
+    <section id="arvrScreen" class="screen">
+      <div class="card">
+        <h2>🌐 AR / VR 360 Preview</h2>
+        <p class="muted">Click either viewer to open an embedded modal (no external navigation).</p>
+        <a-scene embedded style="height:320px;background:#000">
+          <a-sky id="aframeSky" src="https://cdn.aframe.io/360-image-gallery-boilerplate/img/sechelt.jpg"></a-sky>
+        </a-scene>
+        <div style="margin-top:12px" class="row">
+          <button id="open360" class="btn">Open 360 (A-Frame)</button>
+          <button id="openPano" class="btn alt">Open 360 (Pannellum)</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- TRANSLATOR / CHATBOT SCREEN -->
+    <section id="translatorScreen" class="screen">
+      <div class="card">
+        <h2>🗣 Translator & Chatbot</h2>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+          <select id="speechLang_short" style="width:120px">
+            <option value="en">English</option>
+            <option value="hi">Hindi</option>
+          </select>
+          <button id="micBtn_short" class="btn alt">🎤 Listen</button>
+          <button id="speakBtn_short" class="btn">🔊 Speak</button>
+          <button id="translateBtn_short" class="btn alt">⇄ Translate</button>
+        </div>
+        <div style="margin-top:8px">
+          <textarea id="assistantText_short" placeholder='Try: "Hello" or ask a question about tourist places in Jharkhand'></textarea>
+        </div>
+        <div style="margin-top:12px" class="card">
+          <h3 style="margin:0 0 8px">🤖 Simple Q&A Chatbot</h3>
+          <div id="chatWindow" class="chat-window" aria-live="polite"></div>
+          <div class="chat-input">
+            <input id="chatInput" placeholder="Ask one of the basic questions (e.g., 'best time to visit Netarhat')" />
+            <button id="chatSend" class="btn">Send</button>
+          </div>
+          <div class="small-muted">This assistant answers a fixed set of common Q&A about Jharkhand places. It will not navigate routes or control fares.</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <button id="backBtn" class="backBtn">← Back to Menu</button>
+
+  <!-- FOOTER -->
+  <footer class="container" id="mainFooter" style="display:none">
+    © <span id="year"></span> JharSafar — Demo prototype.
+  </footer>
+
+  <!-- MODALS -->
+  <!-- A-Frame Modal -->
+  <div id="aframeModal" class="modal" role="dialog" aria-hidden="true">
+    <div class="wrap">
+      <div class="hdr">
+        <div><strong>A-Frame 360 Preview</strong></div>
+        <div>
+          <button id="aframeFullscreen" class="btn alt">Fullscreen</button>
+          <button id="aframeClose" class="close">Close</button>
+        </div>
+      </div>
+      <div style="width:100%;height:600px;">
+        <a-scene embedded style="height:100%;background:#000">
+          <a-sky id="aframeModalSky" src="https://cdn.aframe.io/360-image-gallery-boilerplate/img/sechelt.jpg"></a-sky>
+        </a-scene>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pannellum Modal -->
+  <div id="panoModal" class="modal" role="dialog" aria-hidden="true">
+    <div class="wrap">
+      <div class="hdr">
+        <div><strong>Taj Mahal — 360° preview (Pannellum)</strong></div>
+        <div>
+          <button id="panoFullscreen" class="btn alt">Fullscreen</button>
+          <button id="panoClose" class="close">Close</button>
+        </div>
+      </div>
+      <div id="panoContainer" style="width:100%; height:600px; background:#000"></div>
+    </div>
+  </div>
+
+  <!-- Guide Profile Modal -->
+  <div id="guideModal" class="modal" role="dialog" aria-hidden="true">
+    <div class="wrap">
+      <div class="hdr">
+        <div><strong>Guide profile</strong></div>
+        <div><button id="guideClose" class="close">Close</button></div>
+      </div>
+      <div class="guide-profile" id="guideProfileContent" style="max-height:500px;overflow:auto"></div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
